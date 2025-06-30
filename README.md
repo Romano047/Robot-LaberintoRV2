@@ -1,8 +1,11 @@
 # Robot-LaberintoRV2
-Robot Laberinto R 2024
+Robot Laberinto R 2024-2025
 
-Proyecto realizado por Iván Romano en el transcurso del presente ciclo lectivo (2024) durante el transcurso del 6to año de la tecnicatura en Electrónica. 
-El objetivo de este proyecto es el de llevar a cabo un robot capáz de completar un laberinto de forma completamente autónoma en el menor tiempo posible. Se tomarán como referencia en su elaboración las reglas actualmente vigentes (2024) dentro de la Liga Nacional de Robótica (LNR) en la categoría de "Laberinto". 
+Proyecto realizado en la Escuela de Educación Secundaria Técnica N°5 "2 de Abril" Temperley, Buenos Aires, Argentina. Desarrollado por Iván Romano, estudiante de Electrónica de la institución a cargo del profesor Ing. Martín Leguizamón.
+
+El objetivo de este reoositrio es el de desarrollar un robot autónomo de competición dentro de la categoría de "Robot Laberinto". 
+
+Se tomarán como referencia en su elaboración las reglas actualmente vigentes (2024) dentro de la Liga Nacional de Robótica (LNR) en la categoría de "Laberinto". 
 
 
 Detalles de cada carpeta dentro de este repositorio: 
