@@ -1,0 +1,61 @@
+#include <Arduino.h>
+
+#define PIN_ECHO_DER        39 //1
+#define PIN_ECHO_IZQ        35 //2
+#define PIN_ECHO_FRONT      34 //3
+#define PIN_TRIGGER_DER     32 //1
+#define PIN_TRIGGER_IZQ     33 //2
+#define PIN_TRIGGER_FRONT   25 //3
+
+
+
+void setup() {
+  Serial.begin (115200);
+
+  pinMode (PIN_ECHO_DER   , INPUT);
+  pinMode (PIN_ECHO_IZQ   , INPUT);
+  pinMode (PIN_ECHO_FRONT , INPUT);
+  pinMode (PIN_TRIGGER_DER   , OUTPUT);
+  pinMode (PIN_TRIGGER_IZQ   , OUTPUT);
+  pinMode (PIN_TRIGGER_FRONT , OUTPUT);
+
+  digitalWrite (PIN_TRIGGER_DER , LOW);
+  digitalWrite (PIN_TRIGGER_IZQ , LOW);
+  digitalWrite (PIN_TRIGGER_FRONT , LOW);
+}
+
+void loop() {
+
+  long distancia_der;
+  long distancia_izq;
+  long distancia_front;
+  long tiempo_der;
+  long tiempo_izq;
+  long tiempo_front;
+
+  digitalWrite (PIN_TRIGGER_DER , HIGH);
+  delayMicroseconds(10);
+  digitalWrite (PIN_TRIGGER_DER , LOW);
+  tiempo_der = pulseIn (PIN_ECHO_DER , HIGH);
+  distancia_der = tiempo_der / 59; 
+
+  digitalWrite (PIN_TRIGGER_IZQ , HIGH);
+  delayMicroseconds(10);
+  digitalWrite (PIN_TRIGGER_IZQ , LOW);
+  tiempo_izq = pulseIn (PIN_ECHO_IZQ , HIGH);
+  distancia_izq = tiempo_izq / 59;
+
+  digitalWrite (PIN_TRIGGER_FRONT , HIGH);
+  delayMicroseconds(10);
+  digitalWrite (PIN_TRIGGER_FRONT , LOW);
+  tiempo_front = pulseIn (PIN_ECHO_FRONT , HIGH);
+  distancia_front = tiempo_front / 59;
+  
+  Serial.print ("Frontal: ");
+  Serial.print (distancia_front);
+  Serial.print ("  Derecho: ");
+  Serial.print (distancia_der);
+  Serial.print ("  Izquierdo: ");
+  Serial.println (distancia_izq);
+  delay(50);
+}
