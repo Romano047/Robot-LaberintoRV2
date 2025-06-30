@@ -8,15 +8,22 @@ El objetivo de este reoositrio es el de desarrollar un robot autónomo de compet
 Se tomarán como referencia en su elaboración las reglas actualmente vigentes (2024) dentro de la Liga Nacional de Robótica (LNR) en la categoría de "Laberinto". 
 
 
-Detalles de cada carpeta dentro de este repositorio: 
+# Guía de Repositorio
 
--Hardware-
-KiCad: En ella se encuentran todos los archivos correspondientes al desarrollo del PCB
+- Hardware:
+  - KiCad: En ella se encuentran todos los archivos correspondientes al desarrollo del PCB.
 
--Diseño 3D-
-AutoCad: El diseño en 3D ha sido realizado empleando AutoCad 2020. En esta carpeta se encuentran los archivos correspondientes junto a sus trazados a formato .stl para facilitar su posterior impresión. 
+- 3D:
+  - AutoCad: En esta carpeta se encuentran los archivos correspondientes al diseño 3D en conjunto a sus trazados a formato .stl para facilitar su posterior impresión. 
 
--Software-
-Todos las carpetas correspondientes a esta sección han sido realizadas en Visual Studio Code mediante PlatfotmIO.
-Ensayos VSCode: Ensayos realizados previos a la versión final hallada en la carpeta "LaberintoR2" seguido del número de la versión actualizada del mismo. 
-LaberintoR2_v2: Versión del Software ejecutada actualmente en el robot. 
+- Software
+ - Ensayos: Ensayos básicos de cada funcionalidad o punto de interés de forma aislada que conforman el robot. (A su vez se encontrarán en el archivos correspondientes al robort de competición provincial "Alita").
+- LaberintoR2_v2: Versión del Software ejecutada actualmente en el robot. 
+
+# Especificaciones
+
+- Software: Desarrollado en C Orientado a Objetos, por medio del uso de VsCode en conjunto a su extensión PlatformIO.
+- Desarrollo de PCBs: KiCad 7
+- Placa de Desarrollo: Espressif ESP-32 WROOM DEV KIT
+- Sensores de proximidad: HC-SR04
+- Drivers de Motores: TB6612fng
