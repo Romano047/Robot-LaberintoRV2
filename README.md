@@ -11,15 +11,14 @@ Se tomarán como referencia en su elaboración las reglas actualmente vigentes (
 # Guía de Repositorio
 
 - Hardware
-   KiCad: En ella se encuentran todos los archivos correspondientes al desarrollo del PCB.
+  - KiCad: En ella se encuentran todos los archivos correspondientes al desarrollo del PCB.
 
 - 3D
-   AutoCad: En esta carpeta se encuentran los archivos correspondientes al diseño 3D en conjunto a sus trazados a formato .stl para facilitar su posterior impresión. 
+  - AutoCad: En esta carpeta se encuentran los archivos correspondientes al diseño 3D en conjunto a sus trazados a formato .stl para facilitar su posterior impresión. 
 
 - Software
-   Ensayos: Ensayos básicos de cada funcionalidad o punto de interés de forma aislada que conforman el robot. (A su vez se encontrarán en el archivos correspondientes al robort de competición provincial "Alita").
-
-   LaberintoR2_v2: Versión del Software ejecutada actualmente en el robot. 
+  - Ensayos: Ensayos básicos de cada funcionalidad o punto de interés de forma aislada que conforman el robot. (A su vez se encontrarán en el archivos correspondientes al robort de competición provincial "Alita").
+  - LaberintoR2_v2: Versión del Software ejecutada actualmente en el robot. 
 
 # Especificaciones
 
