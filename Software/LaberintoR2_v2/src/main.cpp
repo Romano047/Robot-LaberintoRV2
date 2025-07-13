@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <BluetoothSerial.h>
+#include <motors_TB6612fng.h>
 
 //Sensores de Ultrasonido
 #define PIN_ECHO_DER        39 
@@ -21,26 +22,14 @@
 #define PIN_PWM_A  4
 #define PIN_PWM_B 16
 
-//Funciones de pulsadores
-int state_start;
-int state_right;
-int state_left;
-int casos_pulsadores = 'E';
-bool start;
-bool right;
-bool left;
-bool start_right;
-bool start_left;
-bool start_bool;
-unsigned long start_time = 0;
+#define CHANNEL_MR 0
+#define CHANNEL_ML 1 
+#define PWM_FREQUENCY 1000 
+#define PWM_RESOLUTION 8
 
-
-//Funciones Globales de Ultrasonidos
-long distancia_der;
-long distancia_izq;
-long distancia_front;
-int sensores_por_derecha;
-
+MotorPair motor (PIN_A1 , PIN_A2 , PIN_PWM_A , CHANNEL_MR ,
+                 PIN_B1 , PIN_B2 , PIN_PWM_B , CHANNEL_ML ,
+                 PWM_FREQUENCY , PWM_RESOLUTION);
 
 
 //Bluetooth
@@ -55,8 +44,6 @@ String device_name = "Romano v2";
 BluetoothSerial SerialBT;
 int dato_BT;
 
-
-
 //MPU6050
 //Direccion I2C de la IMU
 #define MPU 0x68
@@ -66,7 +53,7 @@ int dato_BT;
 #define G_R 131.0 // 32768/250
  
 //Conversion de radianes a grados 180/PI
-#define RAD_A_DEG = 57.295779
+#define RAD_A_DEG 57.295779
  
 //MPU-6050 da los valores en enteros de 16 bits
 //Valores RAW
@@ -98,23 +85,13 @@ void setup() {
   digitalWrite (PIN_TRIGGER_IZQ , LOW);
   digitalWrite (PIN_TRIGGER_FRONT , LOW);
 
-  //Pulsadores
-  pinMode (PIN_START , INPUT_PULLUP);
-  pinMode (PIN_RIGHT , INPUT_PULLUP);
-  pinMode (PIN_LEFT  , INPUT_PULLUP);
-  start = false;
-  right = false;
-  left  = false;
-  start_bool = false;
-  casos_pulsadores = 'E';
-
   //Drivers de Motor
-  pinMode (PIN_A1 , OUTPUT);
+  /*pinMode (PIN_A1 , OUTPUT);
   pinMode (PIN_A2 , OUTPUT);
   pinMode (PIN_B1 , OUTPUT);
   pinMode (PIN_B2 , OUTPUT);
   pinMode (PIN_PWM_A , OUTPUT);
-  pinMode (PIN_PWM_B , OUTPUT);
+  pinMode (PIN_PWM_B , OUTPUT);*/
 
   //MPU6050
   Wire.begin(21,22); // D2(GPIO4)=SDA / D1(GPIO5)=SCL
@@ -122,10 +99,8 @@ void setup() {
   Wire.write(0x6B);
   Wire.write(0);
   Wire.endTransmission(true);
-  Serial.begin(115200);
 
   //Bluetooth
-  Serial.begin(115200);
   SerialBT.begin(device_name);
   Serial.printf("The device with name \"%s\" is started.\nNow you can pair it with Bluetooth!\n", device_name.c_str());
 
@@ -134,7 +109,6 @@ void setup() {
     Serial.println("Using PIN");
   #endif
 }
-
 
 
 void Bluetooth() {
@@ -149,93 +123,16 @@ void Bluetooth() {
   dato_BT = SerialBT.read();
 }
 
-void Pulsadores() {
-  state_right = digitalRead (PIN_RIGHT);
-  if (state_right == LOW) {
-    right = true;
-  } else {!right;}
-  
-  state_left = digitalRead (PIN_LEFT);
-  if (state_left == LOW) {
-    left = true;
-  } else {!left;}
 
-  if (right == true) {casos_pulsadores = 'R';}
-  else if (left == true) {casos_pulsadores = 'L';}
-  if (!right && !left) {casos_pulsadores = 'E';}
-
-
-  if (right || left) {
-    state_start = digitalRead (PIN_START);
-    if (state_start == LOW) {
-      start = true;
-      start_time = millis(); 
-    } else {!start;}
-  }
-  int tiempo_espera_start = 5000;
-  
-  if (start && millis() < start_time + tiempo_espera_start) {
-    start_bool = false;
-  } else {
-    start_bool = true;
-  }
-
-  if (start && start_bool) {
-    switch (casos_pulsadores) {
-
-      case 'R': {
-        start_right = true;
-        break;
-      }
-
-      case 'L': {
-        start_left = true;
-        break;
-      }
-
-      case 'E': {
-      Serial.print ("Esperando");
-      break;
-      }
-    }
-  }
-  delay (250);
-}
-
-void SensoresMedicion() {
-  long tiempo_der;
-  long tiempo_izq;
-  long tiempo_front;
-
+/*
   digitalWrite (PIN_TRIGGER_DER , HIGH);
   delayMicroseconds(10);
   digitalWrite (PIN_TRIGGER_DER , LOW);
   tiempo_der = pulseIn (PIN_ECHO_DER , HIGH);
-  distancia_der = tiempo_der / 59; 
-
-  digitalWrite (PIN_TRIGGER_IZQ , HIGH);
-  delayMicroseconds(10);
-  digitalWrite (PIN_TRIGGER_IZQ , LOW);
-  tiempo_izq = pulseIn (PIN_ECHO_IZQ , HIGH);
-  distancia_izq = tiempo_izq / 59;
-
-  digitalWrite (PIN_TRIGGER_FRONT , HIGH);
-  delayMicroseconds(10);
-  digitalWrite (PIN_TRIGGER_FRONT , LOW);
-  tiempo_front = pulseIn (PIN_ECHO_FRONT , HIGH);
-  distancia_front = tiempo_front / 59;
-}
-
-void SensoresPorDerecha() {
-  
-}
+  distancia_der = tiempo_der / 59; */
 
 
-void loop() {
-
-  Bluetooth();
-  Pulsadores();
-  
+void Read_MPU6050 () {
   //Leer los valores del Acelerometro de la IMU
    Wire.beginTransmission(MPU);
    Wire.write(0x3B); //Pedir el registro 0x3B - corresponde al AcX
@@ -263,9 +160,6 @@ void loop() {
    Gy[0] = GyX/G_R;
    Gy[1] = GyY/G_R;
    Gy[2] = GyZ/G_R;
-
-   dt = (millis() - tiempo_prev) / 1000.0;
-   tiempo_prev = millis();
  
    //Aplicar el Filtro Complementario
    Angle[0] = 0.98 *(Angle[0]+Gy[0]*dt) + 0.02*Acc[0];
@@ -280,5 +174,22 @@ void loop() {
    valores = "90, " +String(Angle[0]) + "," + String(Angle[1]) + "," + String(Angle[2]) + ", -90"; //Angle2 YAW IZQ -90 DER 90
    Serial.println(valores);
    delay(10);
+}
+
+
+void loop() {
+
+  motor.MoveForwards (255 , 255);
+  delay (1000);
+  motor.MoveBackwards (255 , 255);
+  delay (1000);
+  motor.TurnLeft (0 , 255);
+  delay (1000);
+  motor.TurnRight (255 , 0);
+  delay (1000);
+  motor.Brake ();
+  delay (500);
+  motor.StayStill ();
+  delay (1000);
 }
 

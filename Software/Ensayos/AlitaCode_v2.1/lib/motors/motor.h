@@ -9,7 +9,8 @@ class Motor {
         int pwmResolution;
 
     public:
-        Motor(int firstPin, int secondPin, int firstChannel, int secondChannel, int frequency, int resolution);
+        Motor(int firstPin, int secondPin, int firstChannel, int secondChannel, 
+              int frequency, int resolution);
         void MoveForward(int speed);
         void MoveBackwards(int speed);
         void Brake();
