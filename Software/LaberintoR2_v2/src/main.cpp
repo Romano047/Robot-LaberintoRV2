@@ -4,12 +4,12 @@
 #include <motors_TB6612fng.h>
 
 //Sensores de Ultrasonido
-#define PIN_ECHO_DER        39 
-#define PIN_ECHO_IZQ        35 
-#define PIN_ECHO_FRONT      34 
-#define PIN_TRIGGER_DER     32 
-#define PIN_TRIGGER_IZQ     33 
-#define PIN_TRIGGER_FRONT   25 
+#define PIN_ECHO_R        39 
+#define PIN_ECHO_L        35 
+#define PIN_ECHO_FRONT    34 
+#define PIN_TRIGGER_R     32 
+#define PIN_TRIGGER_L     33 
+#define PIN_TRIGGER_FRONT 25 
 //Pulsadores
 #define PIN_START 17
 #define PIN_RIGHT 18
@@ -74,31 +74,24 @@ void setup() {
   Serial.begin (115200);
 
   //Sensores de Ultrasonido
-  pinMode (PIN_ECHO_DER   , INPUT);
-  pinMode (PIN_ECHO_IZQ   , INPUT);
+  pinMode (PIN_ECHO_R   , INPUT);
+  pinMode (PIN_ECHO_L   , INPUT);
   pinMode (PIN_ECHO_FRONT , INPUT);
-  pinMode (PIN_TRIGGER_DER   , OUTPUT);
-  pinMode (PIN_TRIGGER_IZQ   , OUTPUT);
+  pinMode (PIN_TRIGGER_R   , OUTPUT);
+  pinMode (PIN_TRIGGER_L   , OUTPUT);
   pinMode (PIN_TRIGGER_FRONT , OUTPUT);
 
-  digitalWrite (PIN_TRIGGER_DER , LOW);
-  digitalWrite (PIN_TRIGGER_IZQ , LOW);
+  digitalWrite (PIN_TRIGGER_R , LOW);
+  digitalWrite (PIN_TRIGGER_L , LOW);
   digitalWrite (PIN_TRIGGER_FRONT , LOW);
 
-  //Drivers de Motor
-  /*pinMode (PIN_A1 , OUTPUT);
-  pinMode (PIN_A2 , OUTPUT);
-  pinMode (PIN_B1 , OUTPUT);
-  pinMode (PIN_B2 , OUTPUT);
-  pinMode (PIN_PWM_A , OUTPUT);
-  pinMode (PIN_PWM_B , OUTPUT);*/
-
   //MPU6050
-  Wire.begin(21,22); // D2(GPIO4)=SDA / D1(GPIO5)=SCL
+  Wire.begin(21,22);
   Wire.beginTransmission(MPU);
   Wire.write(0x6B);
   Wire.write(0);
   Wire.endTransmission(true);
+  tiempo_prev = millis();
 
   //Bluetooth
   SerialBT.begin(device_name);
@@ -124,6 +117,43 @@ void Bluetooth() {
 }
 
 
+int Read_Front_Sensor () {
+  digitalWrite (PIN_TRIGGER_FRONT , HIGH);
+  delayMicroseconds (10);
+  digitalWrite (PIN_TRIGGER_FRONT , LOW);
+  int time = pulseIn (PIN_ECHO_FRONT , HIGH);
+  
+  return time;
+}
+
+int Read_Left_Sensor () {
+  digitalWrite (PIN_TRIGGER_L , HIGH);
+  delayMicroseconds (10);
+  digitalWrite (PIN_TRIGGER_L , LOW);
+  int time = pulseIn (PIN_ECHO_L , HIGH);
+
+  return time;
+}
+
+int Read_Right_Sensor () {
+  digitalWrite (PIN_TRIGGER_R , HIGH);
+  delayMicroseconds (10);
+  digitalWrite (PIN_TRIGGER_R , LOW);
+  int time = pulseIn (PIN_ECHO_R , HIGH);
+
+  return time;
+}
+
+#define wallDetected 1000
+
+bool wall_detected (int sensor) {
+  if (sensor < wallDetected) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 /*
   digitalWrite (PIN_TRIGGER_DER , HIGH);
   delayMicroseconds(10);
@@ -133,6 +163,11 @@ void Bluetooth() {
 
 
 void Read_MPU6050 () {
+
+  unsigned long tiempo_actual = millis();
+  dt = (tiempo_actual - tiempo_prev) / 1000.0; // dt en segundos
+  tiempo_prev = tiempo_actual;
+
   //Leer los valores del Acelerometro de la IMU
    Wire.beginTransmission(MPU);
    Wire.write(0x3B); //Pedir el registro 0x3B - corresponde al AcX
@@ -171,25 +206,53 @@ void Read_MPU6050 () {
    yaw = Angle[2];
  
    //Mostrar los valores por consola
-   valores = "90, " +String(Angle[0]) + "," + String(Angle[1]) + "," + String(Angle[2]) + ", -90"; //Angle2 YAW IZQ -90 DER 90
+   /*valores = "90, " +String(Angle[0]) + "," + String(Angle[1]) + "," + String(Angle[2]) + ", -90"; //Angle2 YAW IZQ -90 DER 90
    Serial.println(valores);
-   delay(10);
+   delay(10);*/
 }
 
 
+
+
+
+#define MAX_SPEED 255
+#define MID_SPEED 100
+#define LOW_SPEED 50
+
+float actualYaw = 0;
+double Turnning = false;
+float objetiveYawRight;
+
 void loop() {
 
-  motor.MoveForwards (255 , 255);
-  delay (1000);
-  motor.MoveBackwards (255 , 255);
-  delay (1000);
-  motor.TurnLeft (0 , 255);
-  delay (1000);
-  motor.TurnRight (255 , 0);
-  delay (1000);
-  motor.Brake ();
-  delay (500);
-  motor.StayStill ();
-  delay (1000);
+  /*#define MAX_SPEED 255
+  #define MID_SPEED 100
+  #define LOW_SPEED 50*/
+
+  int front = Read_Front_Sensor();
+  int left  = Read_Left_Sensor ();
+  int right = Read_Right_Sensor();
+
+  Read_MPU6050();
+
+  Serial.println (Angle[2]);
+
+  if (wall_detected (right) && !Turnning) {
+    Serial.println ("Adelante");
+  }
+  else if (!wall_detected (right)) {
+    Turnning = true;
+    actualYaw = Angle[2];
+    objetiveYawRight = actualYaw - 90;
+  }
+
+
+  if (Turnning) {
+
+    if (Angle[2] > objetiveYawRight) {
+      Serial.println ("Doblando");
+    }
+    Turnning = false;
+  }
 }
 
