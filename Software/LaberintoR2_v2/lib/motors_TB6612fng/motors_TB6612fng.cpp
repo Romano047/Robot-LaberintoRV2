@@ -69,6 +69,16 @@ void MotorPair::TurnRight (int speedLeft , int speedRight) {
     motorRight.MoveForwards (speedRight);
 }
 
+void MotorPair::TurnAroundLeft (int speedLeft , int speedRight) {
+    motorLeft.MoveBackwards  (speedLeft);
+    motorRight.MoveForwards (speedRight);
+}
+
+void MotorPair::TurnAroundRight (int speedLeft , int speedRight) {
+    motorLeft.MoveForwards    (speedLeft);
+    motorRight.MoveBackwards (speedRight);
+}
+
 void MotorPair::Brake () {
     motorLeft.Brake  ();
     motorRight.Brake ();

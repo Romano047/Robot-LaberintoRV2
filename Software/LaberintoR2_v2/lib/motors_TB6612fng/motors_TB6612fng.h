@@ -36,6 +36,8 @@ class MotorPair {
         void MoveBackwards (int speed_Left , int speed_Right);
         void TurnLeft  (int speed_Left , int speed_Right);
         void TurnRight (int speed_Left , int speed_Right);
+        void TurnAroundLeft  (int speed_Left , int speed_Right);
+        void TurnAroundRight (int speed_Left , int speed_Right);
         void Brake ();
         void StayStill ();   
 };
