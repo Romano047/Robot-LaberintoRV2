@@ -1,7 +1,10 @@
 #include <Arduino.h>
 #include <Wire.h>
+#include <math.h>
 #include <BluetoothSerial.h>
 #include <motors_TB6612fng.h>
+#include "I2Cdev.h"
+#include "MPU6050.h"
 
 //Distance Sensors
 #define PIN_ECHO_R        39 
@@ -15,8 +18,8 @@
 #define PIN_RIGHT 18
 #define PIN_LEFT  19
 //Motor Drivers
-#define PIN_B1    26
-#define PIN_B2    27
+#define PIN_B1    27
+#define PIN_B2    26
 #define PIN_A1     2
 #define PIN_A2    13
 #define PIN_PWM_B  4
@@ -45,30 +48,16 @@ BluetoothSerial SerialBT;
 int dato_BT;
 
 
-//MPU6050
-//Direccion I2C de la IMU
-#define MPU 0x68
- 
-//Ratios de conversion
-#define A_R 16384.0 // 32768/2
-#define G_R 131.0 // 32768/250
- 
-//Conversion de radianes a grados 180/PI
-#define RAD_A_DEG 57.295779
- 
-//MPU-6050 da los valores en enteros de 16 bits
-//Valores RAW
-int16_t AcX, AcY, AcZ, GyX, GyY, GyZ;
- 
-//Angulos
-float Acc[2];
-float Gy[3];
-float Angle[3];
+// La dirección del MPU6050 puede ser 0x68 o 0x69, dependiendo 
+// del estado de AD0. Si no se especifica, 0x68 estará implicito
+MPU6050 sensor;
 
-String valores;
+// Valores RAW (sin procesar) del acelerometro y giroscopio en los ejes x,y,z
+int16_t gx, gy, gz;
 
-long tiempo_prev;
-float dt;
+long tiempo_prev, dt;
+float girosc_ang_x, girosc_ang_y;
+float girosc_ang_x_prev, girosc_ang_y_prev;
 
 
 
@@ -93,15 +82,6 @@ void setup() {
   digitalWrite (PIN_TRIGGER_FRONT , LOW);
 
 
-  //MPU6050
-  Wire.begin(21,22);
-  Wire.beginTransmission(MPU);
-  Wire.write(0x6B);
-  Wire.write(0);
-  Wire.endTransmission(true);
-  tiempo_prev = millis();
-
-
   //Bluetooth
   SerialBT.begin(device_name);
   Serial.printf("The device with name \"%s\" is started.\nNow you can pair it with Bluetooth!\n", device_name.c_str());
@@ -110,6 +90,13 @@ void setup() {
     SerialBT.setPin(pin);
     Serial.println("Using PIN");
   #endif
+
+  //MPU6050
+  Wire.begin();       
+  sensor.initialize(); 
+  if (sensor.testConnection()) Serial.println("Sensor iniciado correctamente");
+  else Serial.println("Error al iniciar el sensor");
+  tiempo_prev=millis();
 }
 
 
@@ -127,65 +114,40 @@ void Bluetooth() {
 
 
 
+int Read_MPU6050() {
+  // Leer las velocidades angulares 
+  sensor.getRotation(&gx, &gy, &gz);
+  
+  //Calcular los angulos rotacion:
+  
+  dt = millis()-tiempo_prev;
+  tiempo_prev=millis();
+  
+  girosc_ang_x = (gx/131)*dt/1000.0 + girosc_ang_x_prev;
+  girosc_ang_y = (gy/131)*dt/1000.0 + girosc_ang_y_prev;
 
+  girosc_ang_x_prev=girosc_ang_x;
+  girosc_ang_y_prev=girosc_ang_y;
 
+  //Mostrar los angulos separadas por un [tab]
+  Serial.print("Rotacion en X:  ");
+  Serial.print(girosc_ang_x); 
+  Serial.print("tRotacion en Y: ");
+  Serial.println(girosc_ang_y);
+  delay(10);
 
-void Read_MPU6050 () {
-
-  unsigned long tiempo_actual = millis();
-  dt = (tiempo_actual - tiempo_prev) / 1000.0; // dt en segundos
-  tiempo_prev = tiempo_actual;
-
-  //Leer los valores del Acelerometro de la IMU
-   Wire.beginTransmission(MPU);
-   Wire.write(0x3B); //Pedir el registro 0x3B - corresponde al AcX
-   Wire.endTransmission(false);
-   Wire.requestFrom(MPU,6,true);   //A partir del 0x3B, se piden 6 registros
-   AcX=Wire.read()<<8|Wire.read(); //Cada valor ocupa 2 registros
-   AcY=Wire.read()<<8|Wire.read();
-   AcZ=Wire.read()<<8|Wire.read();
- 
-   //A partir de los valores del acelerometro, se calculan los angulos Y, X
-   //respectivamente, con la formula de la tangente.
-   Acc[1] = atan(-1*(AcX/A_R)/sqrt(pow((AcY/A_R),2) + pow((AcZ/A_R),2)))*RAD_TO_DEG;
-   Acc[0] = atan((AcY/A_R)/sqrt(pow((AcX/A_R),2) + pow((AcZ/A_R),2)))*RAD_TO_DEG;
- 
-   //Leer los valores del Giroscopio
-   Wire.beginTransmission(MPU);
-   Wire.write(0x43);
-   Wire.endTransmission(false);
-   Wire.requestFrom(MPU,6,true);   //A partir del 0x43, se piden 6 registros
-   GyX=Wire.read()<<8|Wire.read(); //Cada valor ocupa 2 registros
-   GyY=Wire.read()<<8|Wire.read();
-   GyZ=Wire.read()<<8|Wire.read();
- 
-   //Calculo del angulo del Giroscopio
-   Gy[0] = GyX/G_R;
-   Gy[1] = GyY/G_R;
-   Gy[2] = GyZ/G_R;
- 
-   //Aplicar el Filtro Complementario
-   Angle[0] = 0.98 *(Angle[0]+Gy[0]*dt) + 0.02*Acc[0];
-   Angle[1] = 0.98 *(Angle[1]+Gy[1]*dt) + 0.02*Acc[1];
-
-   //Integración respecto del tiempo paras calcular el YAW
-   Angle[2] = Angle[2]+Gy[2]*dt;
-   int yaw;
-   yaw = Angle[2];
- 
-   //Mostrar los valores por consola
-   valores = "90, " +String(Angle[0]) + "," + String(Angle[1]) + "," + String(Angle[2]) + ", -90"; //Angle2 YAW IZQ -90 DER 90
-   Serial.println(valores);
-   delay(10);
+  return girosc_ang_x;
 }
 
 
-#define MAX_SPEED 255
-#define MID_SPEED 100
-#define LOW_SPEED 50
-#define BREAK 0
-#define WALL_DETECTED 1200
-
+#define MAX_LEFT       255
+#define MAX_RIGHT      190
+#define MID_SPEED      140
+#define LOW_SPEED       90
+#define BREAK            0
+#define WALL_DETECTED_FRONT  400
+#define WALL_DETECTED_SIDES 3000
+#define SETPOINT 25
 
 int Read_Front_Sensor () {
   digitalWrite (PIN_TRIGGER_FRONT , HIGH);
@@ -214,13 +176,33 @@ int Read_Right_Sensor () {
   return time;
 }
 
-bool wall_detected (int sensor) {
-  if (sensor < WALL_DETECTED) {
+
+
+
+bool front_wall_detected (int sensor) {
+  if (sensor < WALL_DETECTED_FRONT) {
     return true;
   } else {
     return false;
   }
 }
+
+bool side_wall_detected (int sensor) {
+  if (sensor < WALL_DETECTED_SIDES) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool side_setpoint_reached (int sensor) {
+  if (sensor <= 400) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 
 bool button_order (int button) {
   int button_read = digitalRead (button);
@@ -235,7 +217,7 @@ bool button_order (int button) {
 
 
 
-int setPoint = 500;
+int setPoint = SETPOINT;
 int position;
 
 int proportional;
@@ -243,20 +225,22 @@ int derivative;
 int integral;
 int lastError;
 
-int maxSpeed = 230;
-int minSpeed = 190;
-int speed = 210;
+int maxSpeed = 255;
+int minSpeed = 205;
+int speed    = 235;
 
-float kp = 0.02;
-float ki = 0;
-float kd = 0;
+float kp = 0.70;
+float ki =    0;
+float kd = 0.18;
 float pid;
 float pidRight;
 float pidLeft;
 
-void PID() {
+#define RIGHT_MOTOR_PWM_ERROR 65
 
-  position = Read_Left_Sensor();
+void PID (int wall_sensor) {
+
+  position = wall_sensor;
 
   proportional = position - setPoint;
   derivative = proportional - lastError;
@@ -265,7 +249,7 @@ void PID() {
 
   lastError = proportional;
 
-  pidRight = speed + pid - 10;
+  pidRight = speed + pid;
   pidLeft = speed - pid;
 
   if (pidRight > maxSpeed) {
@@ -278,330 +262,173 @@ void PID() {
   if (pidRight <= minSpeed && pidLeft > minSpeed){
     motor.TurnRight(minSpeed + (minSpeed - pidRight), pidLeft);
   }
-
   else if (pidLeft <= minSpeed && pidRight > minSpeed) {
     motor.TurnLeft(pidRight, minSpeed + (minSpeed - pidLeft));
   }
+  else {
+    motor.MoveForwards(pidRight - RIGHT_MOTOR_PWM_ERROR , pidLeft);
+  }
+}
+
+bool robot_is_turning = false;
+bool turning_left  = false;
+bool turning_right = false;
+
+void TurnLeftPerLeft (int left_sensor) {
+  motor.TurnLeft (LOW_SPEED , MAX_RIGHT);
+
+  if (side_setpoint_reached (left_sensor)) {
+    turning_left = false;
+  }
+}
+
+void TurnRightPerLeft (int left_sensor) {
+  motor.TurnRight (MAX_LEFT , BREAK);
+
+  if (side_setpoint_reached (left_sensor)) {
+    turning_right = false;
+  }
+}
+
+void TurnRightPerRight (int right_sensor) {
+  motor.TurnRight (MAX_LEFT , LOW_SPEED);
+
+  if (side_setpoint_reached (right_sensor)) {
+    turning_right = false;
+  }
+}
+
+void TurnLeftPerRight (int right_sensor) {
+  motor.TurnLeft (BREAK , MAX_RIGHT);
+
+  if (side_setpoint_reached (right_sensor)) {
+    turning_right = false;
+  }
+}
+
+
+
+
+
+
+void FollowLeftWall () {
+  int front = Read_Front_Sensor();
+  int left  =  Read_Left_Sensor();
+
+  if (!robot_is_turning) {
+    if (side_wall_detected (left)) {
+      if (front_wall_detected (front)) {
+        robot_is_turning = true;
+        turning_right = true;
+      }
+      else {
+        PID (left);
+      }
+    }
+    else {
+      robot_is_turning = true;
+      turning_left = true;
+    }
+  }
 
   else {
-    motor.MoveForwards(pidRight , pidLeft);
-  }
-}
 
-
-bool flag_turn_right = false;
-bool flag_turn_left  = false;
-bool flag_turn_u     = false;
-bool flag_PID = false;
-bool flag_hitwall = false;
-int KEEP_FORWATDS_TIME_START  = 300;
-int KEEP_FORWARDS_TIME_FINISH = 450;
-int TURN_TIME   =  175;
-int TURN_U_TIME =  450;
-
-
-enum Action {
-    PREPARATION,
-    FORWARDS_START,
-    TURN,
-    FORWARDS_FINISH
-};
-
-static Action turn_stage = PREPARATION;
-static unsigned long action_start = 0;
-
-
-void TurnLeft() {
-  
-  unsigned long time = millis();
-
-  if (turn_stage == PREPARATION) {
-    Serial.println ("PREPARATION");
-    action_start = time;
-    turn_stage = FORWARDS_START;
-  }
-
-  if (turn_stage == FORWARDS_START) {
-    Serial.println ("FORWARDS_START");
-    motor.MoveForwards(MAX_SPEED, MAX_SPEED);
-    if (time - action_start >= KEEP_FORWATDS_TIME_START) {
-      action_start = time;
-      turn_stage = TURN;
+    if (turning_left) {
+      TurnLeftPerLeft (left);
+      if (!turning_left) {
+        robot_is_turning = false;
+      }
     }
-  }
-  else if (turn_stage == TURN) {
-    Serial.println ("TURN");
-    motor.TurnLeft(BREAK, MAX_SPEED);
-    if (time - action_start >= TURN_TIME) {
-      action_start = time;
-      turn_stage = FORWARDS_FINISH;
-    }
-  }
-  else if (turn_stage == FORWARDS_FINISH) {
-    Serial.println ("FORWARDS_FINISH");
-    motor.MoveForwards(MAX_SPEED, MAX_SPEED);
-    if (time - action_start >= KEEP_FORWARDS_TIME_FINISH) {
-      turn_stage = PREPARATION;
-      flag_turn_left = false;
-      motor.MoveForwards (0 , 0);
-      Serial.print ("WAITING");
+
+    if (turning_right) {
+      TurnRightPerLeft (left);
+      if (!turning_right) {
+        robot_is_turning = false;
+      }
     }
   }
 }
 
 
-void TurnRight() {
-
-  unsigned long time = millis();
-
-  if (turn_stage == PREPARATION) {
-    Serial.println ("PREPARATION");
-    action_start = time;
-    turn_stage = FORWARDS_START;
-  }
-
-  if (turn_stage == FORWARDS_START) {
-    Serial.println ("FORWARDS_START");
-    motor.MoveForwards(MAX_SPEED, MAX_SPEED - 20);
-    if (time - action_start >= KEEP_FORWATDS_TIME_START) {
-      action_start = time;
-      turn_stage = TURN;
-    }
-  }
-  else if (turn_stage == TURN) {
-    Serial.println ("TURN");
-    motor.TurnRight(MAX_SPEED, BREAK);
-    if (time - action_start >= TURN_TIME + TURN_TIME) {
-      action_start = time;
-      turn_stage = FORWARDS_FINISH;
-    }
-  }
-  else if (turn_stage == FORWARDS_FINISH) {
-    Serial.println ("FORWARDS_FINISH");
-    motor.MoveForwards(MAX_SPEED, MAX_SPEED - 20);
-    
-    if (time - action_start >= KEEP_FORWARDS_TIME_FINISH - 100) {
-      turn_stage = PREPARATION;
-      flag_turn_right = false;
-      motor.MoveForwards (0 , 0);
-      Serial.print ("WAITING");
-    }
-  }
-}
-
-
-enum ActionU {
-  PREPARATION_U,
-  TURN_U,
-};
-static ActionU turn_stage_u = PREPARATION_U;
-static unsigned long action_start_u = 0;
-
-void TurnU_LEFT() {
-
-  unsigned long time_u = millis();
-
-  if (turn_stage_u == PREPARATION_U) {
-    Serial.println ("PREPARATION");
-    action_start_u = time_u;
-    turn_stage_u = TURN_U;
-  }
-
-  if (turn_stage_u == TURN_U) {
-    Serial.println ("TURN U");
-    motor.TurnAroundLeft (MAX_SPEED, MAX_SPEED);
-    
-    if (time_u - action_start_u >= TURN_U_TIME) {
-      turn_stage_u = PREPARATION_U;
-      flag_turn_u = false;
-      motor.MoveForwards (0 , 0);
-      Serial.print ("WAITING");
-    }
-  }
-}
-
-void TurnU_RIGHT() {
-
-  unsigned long time_u = millis();
-
-  if (turn_stage_u == PREPARATION_U) {
-    Serial.println ("PREPARATION");
-    action_start_u = time_u;
-    turn_stage_u = TURN_U;
-  }
-
-  if (turn_stage_u == TURN_U) {
-    Serial.println ("TURN U");
-    motor.TurnAroundRight (MAX_SPEED, MAX_SPEED);
-    
-    if (time_u - action_start_u >= TURN_U_TIME) {
-      turn_stage_u = PREPARATION_U;
-      flag_turn_u = false;
-      motor.MoveForwards (0 , 0);
-      Serial.print ("WAITING");
-    }
-  }
-}
-
-
-bool flag_RobotIsTurning = false;
-
-void loop() {
-
-  Bluetooth();
-  Read_MPU6050();
-
-  /*int front = Read_Front_Sensor();
-  int left  = Read_Left_Sensor ();
+void FollowRightWall () {
+  int front = Read_Front_Sensor();
   int right = Read_Right_Sensor();
 
-  if (dato_BT == 'q') {
-    kp += 0.01;
-  }
-  else if (dato_BT == 'a') {
-    kp -= 0.01;
-  }
-  else if (dato_BT == 'w') {
-    kd += 0.01;
-  }
-  else if (dato_BT == 's') {
-    kd -= 0.01;
-  }
-  else if (dato_BT == 'z') {
-    SerialBT.print ("KP = ");
-    SerialBT.println (kp);
-    SerialBT.print ("KD = ");
-    SerialBT.println (kd);
-    SerialBT.println (" ");
-  }
-
-  if (!flag_RobotIsTurning) {
-
-    if (wall_detected(left)) {
-
-      if (wall_detected (front)) {
-
-        if (wall_detected (right)) {
-          //Turn U
-          SerialBT.println ("Turn U");
-          flag_turn_u = true;
-          flag_RobotIsTurning = true;
-        }
-        else {
-          //Turn Left
-          SerialBT.println ("Turn Left");
-          flag_turn_right = true;
-          flag_RobotIsTurning = true;
-        }
+  if (!robot_is_turning) {
+    if (side_wall_detected (right)) {
+      if (front_wall_detected (front)) {
+        robot_is_turning = true;
+        turning_right = true;
       }
-
       else {
-        SerialBT.println ("Forwards");
-        motor.MoveForwards (MAX_SPEED , 200);
-        //PID();
+        PID (right);
       }
     }
-    
     else {
-      //turn Right
-      SerialBT.println ("Turn Right");
-      flag_turn_left = true;
-      flag_RobotIsTurning = true;
-    }
-  }
-  
-  if (flag_turn_right) {
-    TurnRight();
-    if (!flag_turn_right) {
-      flag_RobotIsTurning = false;
-    }
-  }
-  
-  if (flag_turn_left) {
-    TurnLeft();
-    if (!flag_turn_left) {
-      flag_RobotIsTurning = false;
+      robot_is_turning = true;
+      turning_right = true;
     }
   }
 
-  if (flag_turn_u) {
-    if (left < right) {
-      TurnU_RIGHT();
-    } else {
-      TurnU_LEFT();
+  else {
+    if (turning_left) {
+      TurnLeftPerRight (right);
+      if (!turning_left) {
+        robot_is_turning = false;
+      }
     }
-    if (!flag_turn_u) {
-      flag_RobotIsTurning = false;
-    }
-  }
 
-
-  if (front < 350) {
-    motor.MoveBackwards (MAX_SPEED , MAX_SPEED);
-    delay (150);
-    if (left < right) {
-      motor.TurnRight (MAX_SPEED , BREAK);
-      delay (125);
-    } else {
-      motor.TurnLeft (BREAK , MAX_SPEED);
-      delay (125);
+    if (turning_right) {
+      TurnRightPerRight (right);
+      if (!turning_right) {
+        robot_is_turning = false;
+      }
     }
   }
-
-  //Serial.println (front);*/
 }
 
 
 
+bool mode_selected = false; 
+bool go_per_left   = false;
+bool go_per_right  = false;
+bool ready         = false;
+#define WAITING_TIME   2000
 
-  /*if (dato_BT == 'q') {
-    kp += 0.05;
+void loop() {
+  Bluetooth();
+
+  if (button_order (PIN_LEFT)) {
+    mode_selected = true;
+    go_per_left   = true;
+    go_per_right  = false;
   }
-  else if (dato_BT == 'a') {
-    kp -= 0.05;
+  else if (button_order (PIN_RIGHT)) {
+    mode_selected = true;
+    go_per_right  = true;
+    go_per_left   = false;
   }
-  else if (dato_BT == 'w') {
-    kd += 0.05;
+  else if (button_order (PIN_START)) {
+    ready = true;
   }
-  else if (dato_BT == 's') {
-    kd -= 0.05;
+
+
+
+  if (ready) {
+    Serial.println ("ready");
+    if (mode_selected) {
+      if (go_per_left) {
+        Serial.println ("left");
+        //FollowLeftWall();
+      }
+      else if (go_per_right) {
+        Serial.println ("right");
+        //FollowRightWall();
+      }
+    }
+    else {
+      Serial.print ("Limpiar");
+      //motor.MoveForwards (MAX_LEFT , MAX_RIGHT);
+    }
   }
-  else if (dato_BT == 'e') {
-   KEEP_FORWATDS_TIME_START += 50;
-  }
-  else if (dato_BT == 'd') {
-   KEEP_FORWATDS_TIME_START -= 50;
-  }
-  else if (dato_BT == 'r') {
-   TURN_TIME += 50;
-  }
-  else if (dato_BT == 'f') {
-   TURN_TIME -= 50;
-  }
-  else if (dato_BT == 't') {
-   KEEP_FORWARDS_TIME_FINISH += 50;
-  }
-  else if (dato_BT == 'g') {
-   KEEP_FORWARDS_TIME_FINISH -= 50;
-  }
-  else if (dato_BT == 'y') {
-   TURN_U_TIME += 50;
-  }
-  else if (dato_BT == 'h') {
-   TURN_U_TIME -= 50;
-  }
-  else if (dato_BT == 'z') {
-    SerialBT.print ("KP = ");
-    SerialBT.println (kp);
-    SerialBT.print ("KD = ");
-    SerialBT.println (kd);
-    SerialBT.println (" ");
-    SerialBT.print ("KEEP START = ");
-    SerialBT.println (KEEP_FORWATDS_TIME_START);
-    SerialBT.print ("TURN = ");
-    SerialBT.println (TURN_TIME);
-    SerialBT.print ("KEEP FINISH = ");
-    SerialBT.println (KEEP_FORWARDS_TIME_FINISH);
-    SerialBT.print ("TURN U = ");
-    SerialBT.println (TURN_U_TIME);
-  }*/
+}
