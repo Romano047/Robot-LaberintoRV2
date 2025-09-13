@@ -143,10 +143,11 @@ int Read_MPU6050() {
 #define MAX_LEFT       255
 #define MAX_RIGHT      190
 #define MID_SPEED      140
-#define LOW_SPEED       90
+#define LOW_SPEED       70
 #define BREAK            0
-#define WALL_DETECTED_FRONT  400
-#define WALL_DETECTED_SIDES 3000
+#define WALL_DETECTED_FRONT  500
+#define WALL_DETECTED_SIDES 1000
+#define SIDE_SETPOINT 500
 #define SETPOINT 25
 
 int Read_Front_Sensor () {
@@ -196,7 +197,7 @@ bool side_wall_detected (int sensor) {
 }
 
 bool side_setpoint_reached (int sensor) {
-  if (sensor <= 400) {
+  if (sensor <= SIDE_SETPOINT) {
     return true;
   } else {
     return false;
@@ -347,6 +348,14 @@ void FollowLeftWall () {
       }
     }
   }
+
+
+  if (front < 340) {
+    motor.MoveBackwards (MAX_LEFT , MAX_RIGHT);
+    delay (150);
+      motor.TurnRight (MAX_LEFT , BREAK);
+      delay (150);
+  }
 }
 
 
@@ -385,50 +394,122 @@ void FollowRightWall () {
       }
     }
   }
+
+  if (front < 340) {
+    motor.MoveBackwards (MAX_LEFT , MAX_RIGHT);
+    delay (150);
+      motor.TurnLeft (BREAK , MAX_RIGHT);
+      delay (125);
+  }
 }
 
 
+
+bool waiting = false;
+#define WAITING_TIME 2000
+
+enum preparation_stage {
+  PREPARATION,
+  WAIT,
+};
+static preparation_stage turn_stage = PREPARATION;
+static unsigned long action_start = 0;
+
+void WaitTime () {
+
+  unsigned long time = millis();
+
+  if (turn_stage == PREPARATION) {
+    Serial.println ("PREPARATION");
+    action_start = time;
+    turn_stage = WAIT;
+  }
+
+  if (turn_stage == WAIT) {
+    Serial.println ("TURN U");
+    motor.TurnAroundLeft (BREAK, BREAK);
+    
+    if (time - action_start >= WAITING_TIME) {
+      turn_stage = PREPARATION;
+      waiting = false;
+      motor.MoveForwards (0 , 0);
+      Serial.print ("WAITING");
+    }
+  }
+}
 
 bool mode_selected = false; 
 bool go_per_left   = false;
 bool go_per_right  = false;
 bool ready         = false;
-#define WAITING_TIME   2000
+
+
+
+
+
+unsigned long waitStart = 0;
+bool waitingStart = false;
 
 void loop() {
   Bluetooth();
 
-  if (button_order (PIN_LEFT)) {
+  if (button_order(PIN_LEFT)) {
     mode_selected = true;
     go_per_left   = true;
     go_per_right  = false;
   }
-  else if (button_order (PIN_RIGHT)) {
+  else if (button_order(PIN_RIGHT)) {
     mode_selected = true;
     go_per_right  = true;
     go_per_left   = false;
   }
-  else if (button_order (PIN_START)) {
+  else if (button_order(PIN_START)) {
     ready = true;
+    waitingStart = true;         
+    waitStart = millis();         
+    motor.MoveForwards(0,0);
   }
 
-
-
   if (ready) {
-    Serial.println ("ready");
+    if (waitingStart) {
+    
+      if (millis() - waitStart >= 2000) {
+        waitingStart = false;   
+      } else {
+        return; 
+      }
+    }
+
+    
     if (mode_selected) {
       if (go_per_left) {
-        Serial.println ("left");
-        //FollowLeftWall();
+        FollowLeftWall();
       }
       else if (go_per_right) {
-        Serial.println ("right");
-        //FollowRightWall();
+        FollowRightWall();
       }
     }
     else {
-      Serial.print ("Limpiar");
-      //motor.MoveForwards (MAX_LEFT , MAX_RIGHT);
+      motor.MoveForwards(MAX_LEFT , MAX_RIGHT);
     }
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//XD
