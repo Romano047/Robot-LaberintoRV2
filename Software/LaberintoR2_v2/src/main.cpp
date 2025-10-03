@@ -236,10 +236,13 @@ float kd = 0.18;
 float pid;
 float pidRight;
 float pidLeft;
+int crash = 0;
 
 #define RIGHT_MOTOR_PWM_ERROR 65
 
 void PID (int wall_sensor) {
+
+  crash = 0;
 
   position = wall_sensor;
 
@@ -308,10 +311,6 @@ void TurnLeftPerRight (int right_sensor) {
 }
 
 
-
-
-
-
 void FollowLeftWall () {
   int front = Read_Front_Sensor();
   int left  =  Read_Left_Sensor();
@@ -353,8 +352,17 @@ void FollowLeftWall () {
   if (front < 340) {
     motor.MoveBackwards (MAX_LEFT , MAX_RIGHT);
     delay (150);
-      motor.TurnRight (MAX_LEFT , BREAK);
-      delay (150);
+    motor.TurnRight (MAX_LEFT , BREAK);
+    delay (150);
+    crash = crash + 1;
+  }
+
+  if (crash > 5) {
+    motor.MoveBackwards (MAX_LEFT , MAX_RIGHT);
+    delay (350);
+    motor.TurnRight (MAX_LEFT , BREAK);
+    delay (400);
+    crash = 0;
   }
 }
 
